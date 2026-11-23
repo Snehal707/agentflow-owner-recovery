@@ -42,3 +42,8 @@ src/withdrawal.ts  withdrawal encoders (byte-identical to AgentFlow's)
 scripts/build.ts   one-file build + SHA-256
 tests/             calldata vectors, decoder refusals, reproducibility, artifact contents
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE). The built HTML file bundles [viem](https://github.com/wevm/viem), ox, abitype, @noble/curves and
+@noble/hashes (all MIT); their license notices are included at the end of the file.

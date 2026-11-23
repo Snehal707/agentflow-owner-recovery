@@ -83,4 +83,15 @@ describe('standalone artifact', () => {
     expect(html).not.toMatch(/\beval\(|new Function\(/)
     expect(html).toContain(o.build) // the page names the commit it was built from
   }, 120_000)
+  test('carries the license notices: this project and every bundled package (a new bundled package must be reviewed here)', async () => {
+    const o = await buildOwnerRecovery(mkdtempSync(join(tmpdir(), 'afr-d-')))
+    const html = readFileSync(o.file, 'utf8')
+    expect(o.packages.map((p) => p.replace(/@[^@]+$/, ''))).toEqual(['@noble/curves', '@noble/hashes', 'abitype', 'ox', 'viem'])
+    const notices = html.slice(html.lastIndexOf('<!--'))
+    expect(notices.split(/\r?\n/).slice(0, 2)).toEqual(['<!--', 'LICENSE NOTICES'])
+    expect(notices.trimEnd().endsWith('-->')).toBe(true)
+    expect(notices).toContain('Copyright (c) 2026 Snehal707')
+    for (const p of o.packages) expect(notices).toContain(`${p} (MIT), bundled in this file:`)
+    expect(notices.split('Permission is hereby granted, free of charge').length - 1).toBe(o.packages.length + 1)
+  }, 120_000)
 })
