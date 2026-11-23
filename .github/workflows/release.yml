@@ -1,0 +1,76 @@
+# Builds the recovery page from the tagged public source, attests it, and stages a DRAFT release. A maintainer tests the draft asset
+# and publishes it by hand (docs/RELEASING.md). With "Enable release immutability" on, publishing locks the tag and assets and GitHub
+# adds a release attestation. Owners verify with:
+#   gh release verify-asset <tag> agentflow-owner-recovery.html -R Snehal707/agentflow-owner-recovery
+#   gh attestation verify agentflow-owner-recovery.html -R Snehal707/agentflow-owner-recovery
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+jobs:
+  build-attest-draft:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # create the draft release
+      id-token: write        # Sigstore signing for the build provenance attestation
+      attestations: write    # store the attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Build from the tagged commit
+        env:
+          RECOVERY_BUILD_COMMIT: ${{ github.sha }}
+        run: bun run build
+
+      - name: Tests (calldata vectors, decoder refusals, reproducible build, artifact contents)
+        env:
+          RECOVERY_BUILD_COMMIT: ${{ github.sha }}
+        run: bun run test
+
+      - name: The page names this commit, is not dirty, and its checksum file matches
+        run: |
+          grep -q "${GITHUB_SHA}" dist/agentflow-owner-recovery.html
+          ! grep -q -- "-dirty" dist/agentflow-owner-recovery.html
+          cd dist && sha256sum -c agentflow-owner-recovery.html.sha256
+
+      - name: Build provenance attestation
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/agentflow-owner-recovery.html
+
+      - name: Create the DRAFT release (publish by hand after testing the draft asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          SHA256=$(cut -d' ' -f1 dist/agentflow-owner-recovery.html.sha256)
+          cat > notes.md <<EOF
+          AgentFlow owner recovery page ${TAG}, built by GitHub Actions from commit ${GITHUB_SHA}.
+
+          SHA-256 of agentflow-owner-recovery.html: \`${SHA256}\`
+
+          Verify before use (GitHub CLI with \`gh release verify-asset\`):
+
+              gh release verify-asset ${TAG} agentflow-owner-recovery.html -R ${GITHUB_REPOSITORY}
+              gh attestation verify agentflow-owner-recovery.html -R ${GITHUB_REPOSITORY}
+
+          The page's footer must show Build ${GITHUB_SHA}. Instructions: docs/OWNER-GUIDE.md.
+          EOF
+          gh release create "$TAG" --draft --verify-tag --title "Owner recovery page ${TAG}" --notes-file notes.md \
+            dist/agentflow-owner-recovery.html dist/agentflow-owner-recovery.html.sha256

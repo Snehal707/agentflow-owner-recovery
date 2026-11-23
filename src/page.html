@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'">
+<title>AgentFlow owner recovery</title>
+<style>
+  :root { --bg:#fff; --fg:#1a1a1a; --muted:#5c5c5c; --line:#d9d9d9; --ok:#1b6e3a; --warn:#8a5a00; --err:#a3221c; --panel:#f6f6f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141414; --fg:#ececec; --muted:#a8a8a8; --line:#3a3a3a; --ok:#6fd08f; --warn:#e0b15c; --err:#ff8a80; --panel:#1e1e1e; } }
+  body { background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; margin:0 auto; max-width:760px; padding:16px; }
+  h1 { font-size:22px; margin:8px 0 4px } h2 { font-size:17px; margin:24px 0 8px }
+  p.lead, .hint { color:var(--muted) } .hint { font-size:13px }
+  section { border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:12px 0; background:var(--panel) }
+  label { display:block; margin:8px 0 2px; font-weight:600 } input, select { width:100%; box-sizing:border-box; padding:8px; font:inherit; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg) }
+  button { margin:8px 8px 0 0; padding:8px 14px; font:inherit; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--fg); cursor:pointer }
+  button.primary { border-color:var(--fg); font-weight:600 } button:disabled { opacity:.5; cursor:not-allowed }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 12px; margin:0 } dt { color:var(--muted) } dd { margin:0; overflow-wrap:anywhere }
+  .msg { min-height:1.2em; margin-top:6px; overflow-wrap:anywhere } .ok { color:var(--ok) } .warn { color:var(--warn) } .err { color:var(--err) }
+  pre { white-space:pre-wrap; overflow-wrap:anywhere; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px; margin:6px 0 }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px } @media (max-width:560px) { .row { grid-template-columns:1fr } }
+  ul { padding-left:18px } li { margin:4px 0; overflow-wrap:anywhere }
+</style>
+</head>
+<body>
+<h1>AgentFlow owner recovery</h1>
+<p class="lead">Recover your AgentFlow wallet without AgentFlow. This page talks only to the network RPC below and to your own browser wallet. Every action is a transaction you sign as the wallet's owner.</p>
+
+<section>
+  <h2>1. Network and wallet</h2>
+  <label for="network">Network</label>
+  <select id="network"><option value="mainnet">Arc mainnet (5042)</option><option value="testnet">Arc Testnet (5042002)</option><option value="custom">Custom</option></select>
+  <label for="rpc">RPC URL</label><input id="rpc" autocomplete="off">
+  <div id="customFields" hidden>
+    <div class="row"><div><label for="chainId">Chain id</label><input id="chainId" inputmode="numeric"></div><div></div></div>
+    <div class="row"><div><label for="usdc">USDC token</label><input id="usdc"></div><div><label for="eurc">EURC token</label><input id="eurc"></div></div>
+  </div>
+  <label for="kernel">Your AgentFlow wallet address</label><input id="kernel" placeholder="0x…" autocomplete="off">
+  <button id="read" type="button" class="primary">Read wallet</button>
+  <button id="connect" type="button">Connect owner wallet</button>
+  <div class="hint">Connected account: <span id="account">none</span></div>
+  <div id="walletMsg" class="msg" role="status"></div>
+</section>
+
+<section id="walletPanel" hidden>
+  <h2>2. What the wallet holds</h2>
+  <dl><dt>USDC</dt><dd id="stUsdc"></dd><dt>EURC</dt><dd id="stEurc"></dd><dt>Gas deposit</dt><dd id="stDeposit"></dd>
+  <dt>Owner</dt><dd id="stOwner"></dd><dt>Permission epoch</dt><dd id="stNonces"></dd></dl>
+</section>
+
+<div id="actions" hidden>
+<section>
+  <h2>3. Stop all agents</h2>
+  <p class="hint">Resets delegated access: every agent permission installed so far stops working. Do this first if you suspect a problem.</p>
+  <button id="reset" type="button" class="primary">Reset delegated access</button>
+  <div id="resetMsg" class="msg" role="status"></div>
+</section>
+
+<section>
+  <h2>4. Agent permissions (optional)</h2>
+  <p class="hint">Revoke one agent at a time. Paste permission ids, or scan the wallet's history (public RPCs limit how many blocks one request may cover).</p>
+  <label for="permIds">Permission ids</label><input id="permIds" placeholder="0x4eb4b6db, 0xdb8f7c4b">
+  <button id="addIds" type="button">Check these ids</button>
+  <div class="row"><div><label for="scanFrom">Scan from block (blank: from the wallet's creation)</label><input id="scanFrom" inputmode="numeric" placeholder="wallet creation block"></div><div><label for="scanChunk">Blocks per request</label><input id="scanChunk" inputmode="numeric" value="10000"></div></div>
+  <button id="scan" type="button">Scan history</button>
+  <ul id="permList"></ul>
+  <div id="permMsg" class="msg" role="status"></div>
+</section>
+
+<section>
+  <h2>5. Withdraw funds</h2>
+  <div class="row"><div><label for="token">Token</label><select id="token"><option>USDC</option><option>EURC</option></select></div>
+  <div><label for="withdrawAmount">Amount</label><input id="withdrawAmount" inputmode="decimal"></div></div>
+  <button id="max" type="button">Max</button>
+  <label for="withdrawTo">Send to (an address you control)</label><input id="withdrawTo" placeholder="0x…" autocomplete="off">
+  <button id="withdraw" type="button" class="primary">Review withdrawal</button>
+  <div id="withdrawMsg" class="msg" role="status"></div>
+</section>
+
+<section>
+  <h2>6. Recover the gas deposit</h2>
+  <p class="hint">Unused network-fee prefunds stay in the EntryPoint as the wallet's deposit. Only the wallet itself can withdraw it.</p>
+  <label for="depositTo">Send to</label><input id="depositTo" placeholder="0x…" autocomplete="off">
+  <button id="deposit" type="button" class="primary">Review gas deposit withdrawal</button>
+  <div id="depositMsg" class="msg" role="status"></div>
+</section>
+</div>
+
+<section id="review" hidden aria-live="polite">
+  <h2>Review before signing</h2>
+  <pre id="reviewText"></pre>
+  <button id="send" type="button" class="primary" disabled>Sign and send</button>
+  <button id="cancel" type="button">Cancel</button>
+  <div id="reviewMsg" class="msg" role="status"></div>
+</section>
+
+<h2>Done in this session</h2>
+<ul id="history"></ul>
+<p class="hint">Works without AgentFlow's servers. Your keys never leave your wallet. If this page ever asks you to sign something other than what the review box describes, stop.</p>
+<p class="hint">Build: <span id="build"></span> — compare with the release you verified.</p>
+<script>/*__RECOVERY_SCRIPT__*/</script>
+</body>
+</html>

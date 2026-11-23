@@ -1,0 +1,2 @@
+# every file is byte-stable across checkouts: the release artifact checksum must not depend on the OS
+* text=auto eol=lf

@@ -1,0 +1,19 @@
+{
+  "name": "agentflow-owner-recovery",
+  "private": true,
+  "type": "module",
+  "description": "Standalone AgentFlow owner recovery page: act on your AgentFlow wallet without AgentFlow.",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test --no-env-file tests/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "2.57.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "esbuild": "0.25.12",
+    "typescript": "7.0.2"
+  }
+}
